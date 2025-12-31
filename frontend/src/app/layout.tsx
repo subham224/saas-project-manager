@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Toaster } from 'react-hot-toast';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "SaaS PM Tool",
-  description: "Project Management for Startups",
+  title: 'SaaS Project Manager',
+  description: 'Manage projects with ease',
 };
 
 export default function RootLayout({
@@ -13,7 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={inter.className}>
+        <Toaster position="top-center" />
+        {children}
+      </body>
     </html>
   );
 }
