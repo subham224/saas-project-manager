@@ -13,7 +13,8 @@ app = FastAPI(title="SaaS Project Manager")
 # This is the easiest way to make Vercel work immediately.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:3000",
+        "https://your-site-name.vercel.app"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
