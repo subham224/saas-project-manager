@@ -17,7 +17,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      {/* suppressHydrationWarning prevents extensions from crashing the app */}
+      <body className={inter.className} suppressHydrationWarning={true}>
         <Toaster position="top-center" />
         {children}
       </body>

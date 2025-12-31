@@ -2,19 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, X, Trash2, Pencil } from 'lucide-react';
-import { 
-  DndContext, 
-  DragEndEvent, 
-  useDraggable, 
-  useDroppable,
-  useSensor,
-  useSensors,
-  PointerSensor
-} from '@dnd-kit/core';
 import api from '@/lib/api';
+import toast from 'react-hot-toast';
+import { Plus, X, Layout, Clock, CheckCircle, Trash2, ArrowRight, ArrowLeft, Edit3 } from 'lucide-react';
 
-// ... (Interfaces match previous)
 interface Task {
   id: number;
   title: string;
@@ -22,162 +13,147 @@ interface Task {
   status: 'todo' | 'in_progress' | 'done';
 }
 
-export default function ProjectBoard() {
-  const params = useParams();
-  const projectId = params.projectId;
+export default function ProjectTasksPage() {
+  const { projectId } = useParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  
+  // Modals State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Form State
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
-  useEffect(() => { if (projectId) fetchTasks(); }, [projectId]);
 
   const fetchTasks = async () => {
     try {
       const res = await api.get(`/projects/${projectId}/tasks/`);
       setTasks(res.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  useEffect(() => { if (projectId) fetchTasks(); }, [projectId]);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post(`/projects/${projectId}/tasks/`, { title, description: desc, status: 'todo' });
-      setTasks([...tasks, res.data]);
-      setShowCreateModal(false); resetForm();
-    } catch (err) { alert("Failed"); }
+      await api.post(`/projects/${projectId}/tasks/`, {
+        title, description: desc, status: 'todo', project_id: parseInt(projectId as string)
+      });
+      toast.success("Task added!");
+      setIsCreateModalOpen(false);
+      resetForm();
+      fetchTasks();
+    } catch (err) { toast.error("Failed to add"); }
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
+  const handleUpdateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTask) return;
+    if (!activeTask) return;
     try {
-      const res = await api.put(`/projects/${projectId}/tasks/${editingTask.id}`, { title, description: desc });
-      setTasks(tasks.map(t => t.id === editingTask.id ? res.data : t));
-      setEditingTask(null); resetForm();
-    } catch (err) { alert("Failed"); }
+      await api.patch(`/projects/${projectId}/tasks/${activeTask.id}`, { title, description: desc });
+      toast.success("Task updated!");
+      setIsEditModalOpen(false);
+      resetForm();
+      fetchTasks();
+    } catch (err) { toast.error("Update failed"); }
   };
 
-  const handleDelete = async () => {
-    if (!editingTask || !confirm("Delete?")) return;
+  const moveStatus = async (taskId: number, newStatus: string) => {
     try {
-      await api.delete(`/projects/${projectId}/tasks/${editingTask.id}`);
-      setTasks(tasks.filter(t => t.id !== editingTask.id));
-      setEditingTask(null);
-    } catch (err) { alert("Failed"); }
+      await api.patch(`/projects/${projectId}/tasks/${taskId}`, { status: newStatus });
+      fetchTasks();
+    } catch (err) { toast.error("Move failed"); }
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const taskId = active.id as number;
-    const newStatus = over.id as Task['status'];
-    const task = tasks.find(t => t.id === taskId);
-    if (!task || task.status === newStatus) return;
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-    try { await api.put(`/projects/${projectId}/tasks/${taskId}`, { status: newStatus }); } catch (err) { fetchTasks(); }
+  const openEditModal = (task: Task) => {
+    setActiveTask(task);
+    setTitle(task.title);
+    setDesc(task.description);
+    setIsEditModalOpen(true);
   };
 
-  const resetForm = () => { setTitle(''); setDesc(''); };
-  const openEditModal = (task: Task) => { setEditingTask(task); setTitle(task.title); setDesc(task.description); };
+  const resetForm = () => {
+    setTitle('');
+    setDesc('');
+    setActiveTask(null);
+  };
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  const deleteTask = async (taskId: number) => {
+    if (!confirm("Delete this task?")) return;
+    try {
+      await api.delete(`/projects/${projectId}/tasks/${taskId}`);
+      fetchTasks();
+    } catch (err) { toast.error("Delete failed"); }
+  };
 
   return (
-    // FIX: h-full takes exactly the space allowed by body
-    <div className="h-full flex flex-col overflow-hidden bg-gray-50 p-6">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-800">Project Board</h1>
-        <button onClick={() => { resetForm(); setShowCreateModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          <Plus size={18} /> New Task
+    <div className="p-8 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Task Board</h1>
+        <button onClick={() => setIsCreateModalOpen(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition">
+          <Plus size={20} /> New Task
         </button>
       </div>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-x-auto h-full pb-2">
-          <KanbanColumn id="todo" title="To Do" tasks={tasks.filter(t => t.status === 'todo')} color="gray" onTaskClick={openEditModal} />
-          <KanbanColumn id="in_progress" title="In Progress" tasks={tasks.filter(t => t.status === 'in_progress')} color="blue" onTaskClick={openEditModal} />
-          <KanbanColumn id="done" title="Done" tasks={tasks.filter(t => t.status === 'done')} color="green" onTaskClick={openEditModal} />
-        </div>
-      </DndContext>
-
-      {/* Modals omitted for brevity, logic remains same as before */}
-      {showCreateModal && (
-        <Modal title="New Task" onClose={() => setShowCreateModal(false)}>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <input autoFocus placeholder="Title" required className="w-full border p-2 rounded" value={title} onChange={e => setTitle(e.target.value)} />
-            <textarea placeholder="Description" className="w-full border p-2 rounded" value={desc} onChange={e => setDesc(e.target.value)} />
-            <div className="flex justify-end gap-2 mt-4">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Create</button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {[
+          { id: 'todo', label: 'To Do', prev: null, next: 'in_progress', color: 'text-gray-600' },
+          { id: 'in_progress', label: 'In Progress', prev: 'todo', next: 'done', color: 'text-amber-600' },
+          { id: 'done', label: 'Completed', prev: 'in_progress', next: null, color: 'text-green-600' }
+        ].map(col => (
+          <div key={col.id} className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 min-h-[600px]">
+            <h2 className={`mb-6 font-bold text-sm uppercase tracking-widest ${col.color}`}>{col.label}</h2>
+            <div className="space-y-4">
+              {tasks.filter(t => t.status === col.id).map(task => (
+                <div key={task.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 group">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-gray-800">{task.title}</h4>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <button onClick={() => openEditModal(task)} className="text-gray-400 hover:text-blue-500"><Edit3 size={16}/></button>
+                      <button onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">{task.description}</p>
+                  
+                  <div className="flex gap-2">
+                    {col.prev && (
+                      <button onClick={() => moveStatus(task.id, col.prev!)} className="flex-1 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg flex items-center justify-center transition">
+                        <ArrowLeft size={14}/>
+                      </button>
+                    )}
+                    {col.next && (
+                      <button onClick={() => moveStatus(task.id, col.next!)} className="flex-1 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center transition">
+                        <ArrowRight size={14}/>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </form>
-        </Modal>
-      )}
-
-      {editingTask && (
-        <Modal title="Edit Task" onClose={() => setEditingTask(null)}>
-          <form onSubmit={handleUpdate} className="space-y-4">
-            <input placeholder="Title" required className="w-full border p-2 rounded" value={title} onChange={e => setTitle(e.target.value)} />
-            <textarea placeholder="Description" className="w-full border p-2 rounded h-32" value={desc} onChange={e => setDesc(e.target.value)} />
-            <div className="flex justify-between items-center mt-6">
-              <button type="button" onClick={handleDelete} className="text-red-500 flex items-center gap-1 hover:bg-red-50 px-3 py-2 rounded transition"><Trash2 size={16} /> Delete</button>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setEditingTask(null)} className="px-4 py-2 text-gray-600">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
-              </div>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// Subcomponents
-function Modal({ title, children, onClose }: any) {
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
-        <h2 className="text-lg font-bold mb-4">{title}</h2>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function KanbanColumn({ id, title, tasks, color, onTaskClick }: any) {
-  const { setNodeRef } = useDroppable({ id });
-  const colorMap: any = { gray: 'bg-gray-100', blue: 'bg-blue-50', green: 'bg-green-50' };
-  return (
-    <div ref={setNodeRef} className={`p-4 rounded-xl flex flex-col ${colorMap[color]} bg-opacity-50 h-full max-h-full`}>
-      <h3 className="font-semibold mb-4 flex justify-between text-gray-700 shrink-0">
-        {title} <span className="bg-white/50 px-2 rounded-full text-sm">{tasks.length}</span>
-      </h3>
-      <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
-        {tasks.map((task: Task) => (
-          <DraggableTask key={task.id} task={task} onClick={() => onTaskClick(task)} />
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
 
-function DraggableTask({ task, onClick }: { task: Task, onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: task.id });
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes} onClick={onClick} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-md transition z-10 group relative select-none">
-      <div className="flex justify-between items-start mb-2 pointer-events-none">
-        <h4 className="font-medium text-gray-800">{task.title}</h4>
-        <Pencil size={14} className="opacity-0 group-hover:opacity-100 text-gray-400" />
-      </div>
-      <p className="text-sm text-gray-500 line-clamp-2 pointer-events-none">{task.description}</p>
+      {/* REUSABLE MODAL (Works for Create and Edit) */}
+      {(isCreateModalOpen || isEditModalOpen) && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6">{isEditModalOpen ? 'Edit Task' : 'New Task'}</h2>
+            <form onSubmit={isEditModalOpen ? handleUpdateTask : handleCreateTask} className="space-y-5">
+              <input placeholder="Task Title" className="w-full border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={title} onChange={(e) => setTitle(e.target.value)} required />
+              <textarea placeholder="Description" rows={3} className="w-full border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={desc} onChange={(e) => setDesc(e.target.value)} />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); resetForm(); }} className="flex-1 bg-gray-100 py-3 rounded-xl font-bold">Cancel</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-100">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

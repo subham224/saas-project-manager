@@ -2,134 +2,134 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';                 // CORRECT: Navigation Link
-import { Plus, Folder } from 'lucide-react';  // CORRECT: Icons
 import api from '@/lib/api';
+import toast from 'react-hot-toast';
+import { Plus, Folder, X } from 'lucide-react';
+import Link from 'next/link'; // <--- ADD THIS LINE
 
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-}
 
 export default function OrganizationPage() {
-  const params = useParams();
-  const orgId = params.id;
-
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { id } = useParams();
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Form State
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
-  // 1. Fetch Projects
-  useEffect(() => {
-    if (!orgId) return;
-
-    const fetchProjects = async () => {
-      try {
-        const res = await api.get(`/organizations/${orgId}/projects/`);
-        setProjects(res.data);
-      } catch (err) {
-        console.error("Failed to fetch projects");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, [orgId]);
-
-  // 2. Create Project
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const fetchProjects = async () => {
     try {
-      const res = await api.post(`/organizations/${orgId}/projects/`, {
-        name: newName,
-        description: newDesc
-      });
-      setProjects([...projects, res.data]);
-      setShowForm(false);
-      setNewName('');
-      setNewDesc('');
+      const res = await api.get(`/projects/?organization_id=${id}`);
+      setProjects(res.data);
     } catch (err) {
-      alert("Failed to create project");
+      toast.error("Could not load projects");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">Loading projects...</div>;
+  useEffect(() => {
+    if (id) fetchProjects();
+  }, [id]);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/projects/', {
+        name: newName,
+        description: newDesc,
+        organization_id: parseInt(id as string)
+      });
+      toast.success("Project created!");
+      setIsModalOpen(false);
+      setNewName('');
+      setNewDesc('');
+      fetchProjects(); // Refresh the list
+    } catch (err) {
+      toast.error("Failed to create project");
+    }
+  };
 
   return (
-    <div>
+    <div className="p-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Projects</h1>
         <button 
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+          onClick={() => setIsModalOpen(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
         >
-          <Plus size={18} />
-          New Project
+          <Plus size={20} /> New Project
         </button>
       </div>
 
-      {/* CREATE FORM */}
-      {showForm && (
-        <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="font-semibold mb-4">Create New Project</h3>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-700">Project Name</label>
-              <input 
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="w-full border p-2 rounded mt-1"
-                placeholder="e.g., Q1 Marketing"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700">Description</label>
-              <input 
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                className="w-full border p-2 rounded mt-1"
-                placeholder="Brief details..."
-              />
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create</button>
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 text-sm">Cancel</button>
-            </div>
-          </form>
+      {/* PROJECT GRID */}
+      {loading ? (
+        <p>Loading...</p>
+      ) : projects.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed">
+          <Folder className="mx-auto text-gray-400 mb-4" size={48} />
+          <p className="text-gray-500">No projects yet. Create your first one!</p>
         </div>
+      ) : (
+        // <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        //   {projects.map((p: any) => (
+        //     <div key={p.id} className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+        //       <h3 className="font-bold text-lg mb-2">{p.name}</h3>
+        //       <p className="text-gray-500 text-sm line-clamp-2">{p.description}</p>
+        //     </div>
+        //   ))}
+        // </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  {projects.map((p: any) => (
+    <Link href={`/dashboard/project/${p.id}`} key={p.id}>
+      <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-blue-500 hover:shadow-md transition cursor-pointer group">
+        <div className="flex items-center gap-3 mb-2">
+          <Folder className="text-blue-500 group-hover:scale-110 transition-transform" size={20} />
+          <h3 className="font-bold text-lg text-gray-800">{p.name}</h3>
+        </div>
+        <p className="text-gray-500 text-sm line-clamp-2">{p.description}</p>
+        <div className="mt-4 text-xs font-semibold text-blue-600 flex items-center gap-1">
+          View Tasks →
+        </div>
+      </div>
+    </Link>
+  ))}
+</div>
+
       )}
 
-      {/* PROJECT LIST */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <div key={project.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between hover:shadow-md transition">
-            <div>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded">
-                  <Folder size={20} />
-                </div>
-                <h3 className="font-semibold text-lg text-gray-800">{project.name}</h3>
+      {/* CREATE PROJECT MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">New Project</h2>
+              <button onClick={() => setIsModalOpen(false)}><X size={20}/></button>
+            </div>
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Project Name</label>
+                <input 
+                  className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newName} onChange={(e) => setNewName(e.target.value)} required
+                />
               </div>
-              <p className="text-gray-500 text-sm">{project.description}</p>
-            </div>
-            
-            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-              <Link 
-                href={`/dashboard/project/${project.id}`}
-                className="text-sm text-blue-600 font-medium hover:underline"
-              >
-                Open Board →
-              </Link>
-            </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <textarea 
+                  className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold">
+                Create Project
+              </button>
+            </form>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
