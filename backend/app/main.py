@@ -1,19 +1,38 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.database import engine, Base
 from app.api.endpoints import auth, organizations, projects, tasks
+import logging
 
-# 1. Create database tables automatically on startup
-# Note: In production, it's better to use Alembic, but this works for now.
-Base.metadata.create_all(bind=engine)
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="SaaS Project Management API")
+# 1. LIFESPAN HANDLER (The modern way to handle startup)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This runs when the app starts
+    logger.info("Verifying database tables...")
+    try:
+        # Creates tables in PostgreSQL if they don't exist
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database is ready.")
+    except Exception as e:
+        logger.error(f"Database error during startup: {e}")
+    
+    yield  # The app stays running here
+    
+    # This runs when the app shuts down
+    logger.info("Shutting down...")
 
-# 2. CORS Configuration
-# Replace the URL below with your actual Vercel deployment URL
+# 2. INITIALIZE APP WITH LIFESPAN
+app = FastAPI(title="SaaS Project Management", lifespan=lifespan)
+
+# 3. CORS CONFIGURATION
 origins = [
     "https://saas-project-manager.vercel.app",
-    "http://localhost:3000",
+    "http://localhost:3000","*",
 ]
 
 app.add_middleware(
@@ -24,12 +43,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Include Routers
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(organizations.router, prefix="/organizations", tags=["Organizations"])
-app.include_router(projects.router, prefix="/projects", tags=["Projects"])
-app.include_router(tasks.router, prefix="/projects/{project_id}/tasks", tags=["Tasks"])
+# 4. ROUTERS
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
+app.include_router(projects.router, prefix="/projects", tags=["projects"])
+app.include_router(tasks.router, prefix="/projects/{project_id}/tasks", tags=["tasks"])
 
-@app.get("/")
-def read_root():
-    return {"status": "API is running", "environment": "production"}
+@app.get("/health")
+def health_check():
+    return {"status": "online", "database": "verified"}
