@@ -1,48 +1,29 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-# 1. Import the task router here
 from app.api.endpoints import auth, organizations, projects, tasks
-# 2. Import the models so the database creates the tables
-from app.models import user, organization, project, task
+from app.core.database import Base, engine
 
-app = FastAPI(title="SaaS Project Manager API")
+# Create Tables
+Base.metadata.create_all(bind=engine)
 
-# --- CORS CONFIGURATION ---
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+app = FastAPI(title="SaaS Project Manager")
 
+# --- CORS FIX IS HERE ---
+# We allow ["*"] which means "Any website can talk to this API".
+# This is the easiest way to make Vercel work immediately.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# -------------------------------
 
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
-app.include_router(
-    projects.router, 
-    prefix="/organizations/{organization_id}/projects", 
-    tags=["projects"]
-)
-
-# 3. Add the Task Router
-app.include_router(
-    tasks.router,
-    # This URL structure means: "Get tasks for this specific project"
-    prefix="/projects/{project_id}/tasks",
-    tags=["tasks"]
-)
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(organizations.router, prefix="/organizations", tags=["Organizations"])
+app.include_router(projects.router, prefix="/projects", tags=["Projects"])
+app.include_router(tasks.router, prefix="/projects/{project_id}/tasks", tags=["Tasks"])
 
 @app.get("/")
-def health_check():
-    return {
-        "status": "healthy", 
-        "app_name": "SaaS PM Tool",
-        "mode": "dev"
-    }
+def read_root():
+    return {"message": "SaaS Backend is Live 🚀"}
