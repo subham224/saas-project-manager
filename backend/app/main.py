@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     try:
         # STEP 1: Nuke the old, broken tables
         # Delete this line after your first successful registration!
-        Base.metadata.drop_all(bind=engine) 
+       
         
         # STEP 2: Recreate them with the correct 'full_name' column
         Base.metadata.create_all(bind=engine)
@@ -42,14 +42,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Authorization",
-        "Content-Type",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 4. ROUTERS

@@ -33,6 +33,7 @@ def create_task(
 
 @router.patch("/{task_id}", response_model=TaskSchema)
 def update_task(
+    project_id: int,
     task_id: int,
     task_in: TaskUpdate,
     db: Session = Depends(get_db),
