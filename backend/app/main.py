@@ -59,3 +59,7 @@ app.include_router(tasks.router, prefix="/projects/{project_id}/tasks", tags=["t
 @app.get("/health")
 def health_check():
     return {"status": "online", "database": "verified"}
+
+@app.get("/cors-test")
+def cors_test():
+    return {"cors": "enabled"}
