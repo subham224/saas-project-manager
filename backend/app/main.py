@@ -10,22 +10,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 1. LIFESPAN HANDLER (The modern way to handle startup)
+# app/main.py
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # This runs when the app starts
     logger.info("Verifying database tables...")
     try:
-        # Creates tables in PostgreSQL if they don't exist
+        # STEP 1: Nuke the old, broken tables
+        # Delete this line after your first successful registration!
+        Base.metadata.drop_all(bind=engine) 
+        
+        # STEP 2: Recreate them with the correct 'full_name' column
         Base.metadata.create_all(bind=engine)
-        logger.info("Database is ready.")
+        
+        logger.info("Database is clean and ready with correct columns.")
     except Exception as e:
         logger.error(f"Database error during startup: {e}")
     
-    yield  # The app stays running here
-    
-    # This runs when the app shuts down
-    logger.info("Shutting down...")
-
+    yield
 # 2. INITIALIZE APP WITH LIFESPAN
 app = FastAPI(title="SaaS Project Management", lifespan=lifespan)
 
